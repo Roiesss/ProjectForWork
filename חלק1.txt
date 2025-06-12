@@ -1,0 +1,54 @@
+from flask import Flask, request, jsonify
+import openai
+from flask_cors import CORS
+
+app = Flask(__name__)
+CORS(app)  # לאפשר קריאות מ-Frontend
+
+openai.api_key = "YOUR_OPENAI_API_KEY"  # שים את מפתח ה-API שלך כאן
+
+@app.route("/generate_report", methods=["POST"])
+def generate_report():
+    data = request.get_json()
+    size = data.get("size")
+    seats = data.get("seats")
+    features = data.get("features", [])
+
+    # סימולציה של דרישות רגולציה
+    base_requirements = [
+        {"title": "מצלמות טלוויזיה", "condition": "אם מוגש אלכוהול", "detail": "חובה צילום, גיבוי, שמירה 14 יום"},
+        {"title": "מערכת ביוב", "condition": "לכל עסק", "detail": "חיבור לביוב מרכזי באישור רשות"},
+        {"title": "שלט איסור אלכוהול לקטינים", "condition": "אם מוגש אלכוהול", "detail": "שלט 40x50 ס""מ"},
+        {"title": "מניעת עישון", "condition": "לכל עסק", "detail": "שלטים ואזור עישון נפרד"},
+    ]
+
+    # סינון דרישות רלוונטיות
+    relevant = []
+    for req in base_requirements:
+        if "אם מוגש אלכוהול" in req["condition"] and "alcohol" in features:
+            relevant.append(req)
+        elif req["condition"] == "לכל עסק":
+            relevant.append(req)
+
+    # יצירת פרומפט ל-GPT
+    prompt = f"""
+    לקוח פתח עסק מסוג מסעדה בגודל {size} מ"ר עם {seats} מקומות ישיבה. הוא כולל את המאפיינים הבאים: {', '.join(features)}.
+    הדרישות הרגולטוריות עבורו הן:
+    {relevant}
+
+    צור דוח בעברית, ברור ומסודר לפי נושאים, עם המלצות פעולה.
+    """
+
+    # קריאה למודל GPT
+    response = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.7
+    )
+
+    report = response["choices"][0]["message"]["content"]
+    return jsonify({"report": report})
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
